@@ -9,6 +9,9 @@
 #  - the Super Game Boy test program runs in the window in the Super Game
 #    Boy's border (256x224), with P3's A pressed, and leaves the headless
 #    runner's memory;
+#  - two Game Boys joined by the link cable run in the window side by side
+#    (320x144), with P2's A held and the cable pulled, and leave the headless
+#    runner's memory of P2;
 #  - without its boot ROM a project that needs one is not opened, and the
 #    file is named (needs tests/roms-local/cgb_boot.bin);
 #  - a game of yours (tests/games-local/, the first .gbc) runs with no boot
@@ -106,11 +109,11 @@ r() { python3 "$here/results.py" "$1" "$2" 2> /dev/null; }
 mkdir -p "$work/progs" "$work/probe"
 python3 "$here/make-testprog.py" "$work/progs/testprog.gb"
 cp "$work/progs/testprog.gb" "$work/probe/"
-printf '{"game":["testprog.gb"]}' > "$work/probe/slots"; printf '{"model":"GB"}' > "$work/probe/settings"
+printf '{"game":["testprog.gb"]}' > "$work/probe/slots"; printf '{"model":"GB","bootRom":"off"}' > "$work/probe/settings"
 "$runwbx" "$core" "$work/probe" --frames 1 --list-panel > "$work/panel.out" 2> /dev/null
 # the movie is longer than the run: a window whose movie ends stops there;
 # P1 A is held from frame 100 (row 99) to the end, and P1 Down from 150
-make_project tt $((frames + 100)) "$work/progs/testprog.gb" model=GB "press=P1 A:99:$frames" "press=P1 Down:149:$frames"
+make_project tt $((frames + 100)) "$work/progs/testprog.gb" model=GB bootRom=off "press=P1 A:99:$frames" "press=P1 Down:149:$frames"
 "$runner" --project "$work/tt/tt.chimeraProject" "$package" --files "$work/tt" --frames "$frames" \
 	--dump "WRAM=$work/engine.ram.bin" > "$work/engine.log" 2>&1
 seen="$(r "$work/engine.ram.bin" padSeen)"
@@ -160,6 +163,28 @@ else
 	report "window:sgb" FAIL "frames $(value sg frames) of $frames, picture $(value sg width)x$(value sg height), P3's pad $p3, or the memory differs from the headless runner's"
 fi
 
+# ---- two Game Boys linked: the link programs, P2's A held, the cable pulled
+python3 "$here/make-testprog.py" "$work/progs/master.gb" link=master
+python3 "$here/make-testprog.py" "$work/progs/slave.gb" link=slave
+mkdir -p "$work/lprobe" "$work/lk"
+cp "$work/progs/master.gb" "$work/progs/slave.gb" "$work/lprobe/"
+printf '{"game":["master.gb"],"game2":["slave.gb"]}' > "$work/lprobe/slots"; printf '{"model":"LINK","bootRom":"off"}' > "$work/lprobe/settings"
+"$runwbx" "$core" "$work/lprobe" --frames 1 --list-panel > "$work/panel-link.out" 2> /dev/null
+cp "$work/progs/master.gb" "$work/progs/slave.gb" "$work/lk/"
+python3 "$here/make-project.py" "$package" "$work/lk/lk.chimeraProject" $((frames + 100)) model=LINK bootRom=off \
+	"press=P2 A:99:$frames" "press=Toggle Link Connection:199:1" "panel=$work/panel-link.out" \
+	-- "game=$work/lk/master.gb" "game2=$work/lk/slave.gb" > "$work/lk.log" 2>&1
+"$runner" --project "$work/lk/lk.chimeraProject" "$package" --files "$work/lk" --frames "$frames" \
+	--dump "P2 WRAM=$work/lk-engine.ram.bin" > "$work/lk-engine.log" 2>&1
+if ! run_frontend lk "$work/settings.base.json" "$frames" "P2 WRAM"; then
+	report "window:link" FAIL "Chimera did not finish the run: $(value lk detail) $(tail -2 "$work/lk.log" | tr '\n' ' ' | cut -c1-200)"
+elif [ "$(value lk frames)" = "$frames" ] && [ "$(value lk width)x$(value lk height)" = 320x144 ] && [ -s "$work/lk-engine.ram.bin" ] && cmp -s "$work/lk-engine.ram.bin" "$work/lk.ram.bin" \
+	&& [ "$(r "$work/lk.ram.bin" padSeen)" = 1 ]; then
+	report "window:link" PASS "two linked Game Boys ran $frames frames in the window, side by side at 320x144, with P2's A held and the cable pulled at frame 200; P2's work memory is what the headless runner leaves (P2 made $(r "$work/lk.ram.bin" linkCount) transfers)"
+else
+	report "window:link" FAIL "frames $(value lk frames) of $frames, picture $(value lk width)x$(value lk height), or P2's memory differs from the headless runner's ($(r "$work/lk.ram.bin" padSeen))"
+fi
+
 # ---- without its boot ROM, a project that needs one is not opened
 bios="$root/tests/roms-local/cgb_boot.bin"
 if [ ! -f "$bios" ]; then
@@ -187,7 +212,7 @@ if [ -z "$game" ]; then
 	report "window:game" SKIP "needs a .gbc game in tests/games-local"
 else
 	gframes=1500
-	make_project gm $((gframes + 100)) "$game" model=GBC "press=P1 Start:599:5" "press=P1 A:899:5" "press=P1 Start:1099:5"
+	make_project gm $((gframes + 100)) "$game" model=GBC bootRom=off "press=P1 Start:599:5" "press=P1 A:899:5" "press=P1 Start:1099:5"
 	"$runner" --project "$work/gm/gm.chimeraProject" "$package" --files "$work/gm" \
 		--frames "$gframes" --dump "WRAM=$work/gm-engine.ram.bin" > "$work/gm-engine.log" 2>&1
 	if ! run_frontend gm "$work/settings.base.json" "$gframes" "WRAM"; then

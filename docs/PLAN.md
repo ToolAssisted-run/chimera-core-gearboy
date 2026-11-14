@@ -205,3 +205,109 @@ cartridge was on the machine, so none was tried.
   behaviour).
 - Windows and the aarch64 build were not run here; CI is set up for both
   and was not run, as nothing is pushed.
+
+## 2026-11-14: Boot ROM on by default (user-decided, 2026-11-14)
+
+The owner chose the boot ROM on by default, as the Gambatte core has it,
+over Gearboy's own default (off). So a Game Boy or Game Boy Color project
+needs `dmg_boot.bin` or `cgb_boot.bin`, as the Gambatte core's does: the
+New Project window asks for it on its firmware page, and a project without
+it does not open; the core's message names the file and says the other
+way, setting Boot ROM to off, which needs no file. The Game Boy Advance and
+the Super Game Boy have no boot ROM in Gearboy and start without one, as
+before. The test `refused:default-boot-rom` holds both: a Game Boy project
+that does not name the setting and has no boot ROM is refused with
+`dmg_boot.bin` named, and a Super Game Boy project starts. With the setting
+off in the core's default, broken on purpose, it failed. The other tests
+set Boot ROM off where they need no boot ROM.
+
+## 2026-11-14: the Game Boy link cable, in the core (user-decided, 2026-11-14)
+
+The owner's words: "No need to change this at a chimera level. Each core
+should be able to do the replication at the core level and expose this as
+a single machine to Chimera." So the link machine is two Gearboy machines
+inside this one core, shown to Chimera as one machine, as the Gambatte core
+does with its Game Boy Link (system GBL).
+
+- **Model LINK**, the package's machine GBL ("Game Boy Link (two Game
+  Boys)"). `linkModel1` and `linkModel2` say which console each is (GB, GBC
+  or GBA; not the Super Game Boy). The slots `game2` and `savedata2` hold
+  the second Game Boy's game and saved data; with no `game2` the first game
+  is used for both. Boot ROM applies to each Game Boy that has one.
+- **How the two run.** Gearboy has its own link cable for two of itself
+  (`platforms/libretro/libretro_link.cpp`): each Game Boy reports its serial
+  port's state and the start of each transfer through callbacks
+  (`SetLinkCableCallbacks`), and the frontend steps the two a few cycles at
+  a time, always the one behind, matching each transfer with what the other
+  had in its port at that cycle. `gearboy.cpp` carries that loop
+  (`link_frame`, `link_resolve`) over without its libretro parts or its own
+  savestates: the sandbox keeps the matching state with the rest of the
+  machine. So a link frame is always 70,224 cycles of each Game Boy.
+- **Controls.** One list for every machine, 34 buttons: four pads, Power and
+  Toggle Link Connection, and the two tilt axes. On the link machine P1's
+  pad is the first Game Boy's, P2's the second's; Power restarts both and
+  starts the cable's matching afresh (as upstream's reset does); Toggle Link
+  Connection pulls the cable out (a Game Boy that sends on its own clock
+  then gets 255) and puts it back. A frame is a lag frame when neither Game
+  Boy read its buttons.
+- **Picture and sound.** The screens side by side, 320x144; the two sounds
+  mixed, each at half, as upstream mixes them.
+- **Memory.** Each Game Boy's areas and bus, named with its player
+  ("P2 WRAM", "P2 System Bus"); Export Save Data writes "P2 <game>.sav" for
+  the second. The registers are P1's.
+
+### Tests
+
+The test program's link modes (from the Gambatte core): a master sends its
+frame count every frame on its own clock; a slave answers on the master's
+clock with its own count, the top bit set. In Gearboy the slave is ready
+for a transfer about every second frame, so it finishes about 150 in 300
+frames.
+
+- `link:exchange`: 150 transfers in 300 frames, each Game Boy getting the
+  other's count; 320x144.
+- `link:unplugged` and its control: the cable pulled at frame 100 stops
+  the slave's transfers (50, as at frame 100 with the cable in) and the
+  master gets 255; put back at 200, they go on (100 by frame 300).
+- `link:controls`: each pad reaches its own Game Boy; Power restarts both.
+- `link:models`: GBC and GBA as the two Game Boys tell the game so (A/B
+  17/0 and 17/1); with no second game, the second Game Boy runs the first's.
+- `link:save-data`, `link:sound` (442,971 samples in 600 frames, and P2's
+  sound in the mix), `link:lag` (300 in 300 when neither reads, 1 when P2
+  does).
+- `link:sandbox`: native, sandbox, a state saved and loaded every frame
+  (4,463,682 bytes, both Game Boys) and the machine moved to a new sandbox
+  half way: the same 60 digests, with both pads, the cable pulled and put
+  back, and Power. `link:state-rewind`.
+- `engine:link`: a link project in Chimera's headless runner gives P2's
+  memory as the sandbox runner does. `window:link` (tests/run-frontend.sh):
+  the same in Chimera's window, at 320x144.
+- `link-game:smb-deluxe` (needs the game): two Super Mario Bros. Deluxe
+  (USA, Europe) (Rev A), both as the Game Boy Color, go from the title to
+  VS GAME, reach the Vs. screen, where each shows itself as YOU and the
+  other as RIVAL, and race on course 1-1 (2,100 frames; both screens were
+  looked at). Native and sandbox the same.
+
+Not tried: a Pokemon trade or battle (Pokemon Gold needs a saved game with
+two Pokemon, and the Gambatte core's input file for one is timed for
+Gambatte), Rampart's and NHL 2000's link modes; Tetris was not in the
+collection yet. No link game was played to its end.
+
+### Broken on purpose, and the counts
+
+Each was a change to `waterbox/gearboy.cpp`, rebuilt, and the test script
+run: the link matching only transfers P1 starts (`link:exchange`, once the
+test also ran with P2 sending; before that it passed, as only P1 started
+transfers), the starting Game Boy never given the other's byte
+(`link:exchange`, once the test refused 255; before that it passed, since
+255 has the top bit too), the toggle doing nothing (`link:unplugged`, its
+control), P2's pad sent to P1 (`link:controls`), `linkModel` ignored
+(`link:models`), P2's saved data from P1's slot (`link:save-data`), only
+P1's sound (`link:sound`), Power restarting P1 only (`link:controls`), P2's
+pad given to the wrong player (`link:controls`, `link:sound`,
+`engine:link`), Boot ROM off by default (`refused:default-boot-rom`).
+
+`waterbox/run-gate.sh`: 56 passed, 0 failed, 4 skipped (boot ROMs and
+Super Game Boy cartridges absent). `tests/run-frontend.sh`: 5 passed, 1
+skipped. Chimera's package checks: 25 passed. All 38 texts in 26
+languages.

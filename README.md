@@ -19,25 +19,34 @@ New, and not published yet.
   Bugs Bunny Crazy Castle II, Kirby's Star Stacker (Japan), NHL 2000,
   Pokemon Gold, Prince of Persia and Super Mario Bros. Deluxe; NHL 2000 and
   Pokemon Gold on the Super Game Boy too. No game was played through.
-- Not there: the link cable (two Game Boys), the Barcode Boy, the Game Boy
-  Camera's picture and the Game Boy Printer.
+- Game Boy Link: two Game Boys joined by a link cable, in the one core,
+  each with its own game, their screens side by side. Two Super Mario Bros.
+  Deluxe were linked and raced in its Vs. mode; no Pokemon trade was tried.
+- Not there: the Barcode Boy, the Game Boy Camera's picture and the Game
+  Boy Printer.
 
 ## What you bring
 
-- A game: a `.gb`, `.gbc` or `.sgb` file.
-- Only if you want them, which are Nintendo's: the boot ROM of the Game Boy
-  (`dmg_boot.bin`) or the Game Boy Color (`cgb_boot.bin`), used when the Boot
-  ROM setting is on; and the Super Game Boy's own cartridge (`SGB1.sfc` or
+- A game: a `.gb`, `.gbc` or `.sgb` file; for the link machine, one for
+  each Game Boy (or one, used for both).
+- The boot ROM of the Game Boy (`dmg_boot.bin`) or the Game Boy Color
+  (`cgb_boot.bin`), which is Nintendo's. Boot ROM is on by default; set it
+  off and none is needed: the game starts at once, in the state the boot ROM
+  would have left. The Game Boy Advance and the Super Game Boy need none.
+- Only if you want it: the Super Game Boy's own cartridge (`SGB1.sfc` or
   `SGB2.sfc`), for its default border and colours.
 
 ## Buttons and settings
 
 - **Buttons**: Up, Down, Left, Right, Start, Select, B and A. The Super Game
   Boy has four controllers, P1 to P4. **Power** turns the console off and on
-  again. **P1 Tilt X** and **P1 Tilt Y** are a tilt cartridge's sensor.
-- **Model**: GB, GBC, GBA or SGB, chosen with the machine in the New Project
-  window.
-- **Boot ROM**: off (the default: the game starts at once) or on.
+  again. **P1 Tilt X** and **P1 Tilt Y** are a tilt cartridge's sensor. On
+  the link machine P1's and P2's pads are the two Game Boys', and **Toggle
+  Link Connection** pulls the cable out and puts it back.
+- **Model**: GB, GBC, GBA, SGB or LINK, chosen with the machine in the New
+  Project window. **P1 Game Boy** and **P2 Game Boy**: which console each
+  linked Game Boy is.
+- **Boot ROM**: on (the default, the console's own start-up) or off.
 - **Super Game Boy cartridge**: none, SGB1 or SGB2.
 - **Game Boy colours** (green or grey) and **Colour correction** change the
   picture only.
@@ -50,7 +59,8 @@ writes it; a project can start from one.
 RAM Watch and RAM Search read the work memory (WRAM), the video memory
 (VRAM, and VRAM1 on the Game Boy Color), the cartridge's memory, the sprite
 table (OAM), the high memory (HRAM), the cartridge's ROM, and the 64 KB the
-processor sees (the system bus).
+processor sees (the system bus); on the link machine, each Game Boy's
+("P2 WRAM").
 
 ## Building and testing
 

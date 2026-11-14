@@ -47,7 +47,10 @@ Both runners take a work folder that holds what the sandbox would see: the
 game under its name, a boot ROM or Super Game Boy cartridge under its id
 (`dmg_boot.bin`, `cgb_boot.bin`, `SGB1.sfc`, `SGB2.sfc`), a file `slots`
 (`{"game":["game.gbc"]}`, with `"savedata":["game.sav"]` for saved data)
-and a file `settings` (`{}`, or say `{"model":"SGB"}`). With no `model` the
+and a file `settings` (`{}`, or say `{"model":"SGB"}`; Boot ROM is on unless
+it says `"bootRom":"off"`). The link machine takes `{"model":"LINK"}`, each
+Game Boy's console as `linkModel1` and `linkModel2`, and the second Game
+Boy's game and saved data in the slots `game2` and `savedata2`. With no `model` the
 file's extension chooses: `.gbc` the Game Boy Color, `.sgb` the Super Game
 Boy, anything else the Game Boy. `waterbox/gate-harness.h` lists the
 options they share (`--frames`, `--report`, `--press`, `--axis`,
@@ -82,7 +85,8 @@ no file of anyone's:
   reads the buttons, counts frames, keeps a battery-backed memory, reads the
   cartridge's clock, keeps the registers the console started it with, makes
   a tone, and turns the screen off while Select is held. With `sgb` it also
-  sends the Super Game Boy its palettes and asks it for four controllers.
+  sends the Super Game Boy its palettes and asks it for four controllers;
+  with `link=master` or `link=slave` it talks through the link port.
   `tests/results.py` reads what it left in the work memory.
 - `tests/make-gb-test.py` (from the Mesen core) writes `gb-tilt.gb`, a
   cartridge that reads an MBC7 tilt sensor.

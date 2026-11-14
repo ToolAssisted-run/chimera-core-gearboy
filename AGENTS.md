@@ -7,7 +7,8 @@ speedruns. It produces one file, `gearboy.chimeraCore`: Gearboy's emulator
 compiled to run inside Chimera's sandbox (miniBox), a small program around
 it, and the declarations Chimera reads (buttons, settings, machines, file
 types, firmware). Its machines are the Game Boy, the Game Boy Color, the
-Game Boy Advance (Game Boy Color games) and the Super Game Boy.
+Game Boy Advance (Game Boy Color games), the Super Game Boy, and the Game
+Boy Link machine: two Gearboy machines in the core, joined by a link cable.
 
 Read [docs/BUILDING.md](docs/BUILDING.md) before building and
 [docs/PLAN.md](docs/PLAN.md) before changing how the core works: it is the
@@ -28,7 +29,10 @@ design log, with what was decided, why, and what was measured.
 - `waterbox/gearboy.cpp` - the program around Gearboy: it loads the game,
   the boot ROM, the Super Game Boy cartridge and the saved data, sets the
   controls, runs the machine to the end of a picture, gives the cartridge
-  clocks the machine's own time, and is what Chimera's engine calls.
+  clocks the machine's own time, and is what Chimera's engine calls. For
+  the link machine it runs two Gearboy machines a few cycles at a time and
+  matches their serial transfers (`link_frame`, `link_resolve`, carried
+  over from upstream's libretro link).
 - `waterbox/waterbox.config`, `file_slots.json`, `default_keybinds.json`,
   `package-licenses.json`, `languages/` - what the package declares, and
   its texts in Chimera's 26 languages. `licenses/` holds the licence texts.
@@ -39,7 +43,7 @@ design log, with what was decided, why, and what was measured.
   (configures the sandbox build), `build-package.sh`, `run-gate.sh` (the
   test script).
 - `tests/` - `make-testprog.py` (the test cartridge, with a Super Game Boy
-  variant) and `results.py` (reads what it left), `make-gb-test.py` (a
+  variant and link modes) and `results.py` (reads what it left), `make-gb-test.py` (a
   tilt-sensor cartridge), `sgb-screen.py`, `check-key-names.py`,
   `run-frontend.sh` (the window test, with its helpers), `make-project.py`
   (writes a project). `roms-local/` and `games-local/` hold boot ROMs and

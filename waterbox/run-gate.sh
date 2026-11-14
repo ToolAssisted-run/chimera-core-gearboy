@@ -126,17 +126,35 @@ python3 "$root/tests/make-testprog.py" "$progs/testprog.gbc"
 python3 "$root/tests/make-testprog.py" "$progs/nopad.gb" nopad
 python3 "$root/tests/make-testprog.py" "$progs/sgbprog.gb" sgb
 python3 "$root/tests/make-gb-test.py" "$progs" > /dev/null
-folder t '{"model":"GB"}' "$progs/testprog.gb"
-folder c '{"model":"GBC"}' "$progs/testprog.gbc"
-folder q '{"model":"GB"}' "$progs/nopad.gb"
+folder t '{"model":"GB","bootRom":"off"}' "$progs/testprog.gb"
+folder c '{"model":"GBC","bootRom":"off"}' "$progs/testprog.gbc"
+folder q '{"model":"GB","bootRom":"off"}' "$progs/nopad.gb"
 folder s '{"model":"SGB"}' "$progs/sgbprog.gb"
-folder tilt '{"model":"GB"}' "$progs/gb-tilt.gb"
+folder tilt '{"model":"GB","bootRom":"off"}' "$progs/gb-tilt.gb"
 
 "$native" "$work/t" --frames 1 --list-panel > "$work/panel.out" 2> /dev/null
 "$native" "$work/s" --frames 1 --list-panel > "$work/panel-sgb.out" 2> /dev/null
 "$native" "$work/tilt" --frames 1 --list-panel > "$work/panel-tilt.out" 2> /dev/null
-check "package:controls" "each of the package's machines declares the core's own $(grep -c '^panel' "$work/panel.out") buttons and $(grep -c '^axis' "$work/panel.out") axes, in the core's order; on a Game Boy the first pad and Power are live, on the Super Game Boy all four pads; the tilt axes are live only with a tilt cartridge" \
-	python3 - "$here/waterbox.config" "$work/panel.out" "$work/panel-sgb.out" "$work/panel-tilt.out" <<'PY'
+python3 "$root/tests/make-testprog.py" "$progs/master.gb" link=master
+python3 "$root/tests/make-testprog.py" "$progs/slave.gb" link=slave
+# a link folder: <name> <settings json> <P1's game> [<P2's game>]
+lfolder() {
+	lf_name="$1"; lf_settings="$2"; shift 2
+	rm -rf "${work:?}/$lf_name"; mkdir -p "$work/$lf_name"
+	cp "$1" "$work/$lf_name/p1-$(basename "$1")"
+	if [ $# -gt 1 ]; then
+		cp "$2" "$work/$lf_name/p2-$(basename "$2")"
+		printf '{"game":["p1-%s"],"game2":["p2-%s"]}' "$(basename "$1")" "$(basename "$2")" > "$work/$lf_name/slots"
+	else
+		printf '{"game":["p1-%s"]}' "$(basename "$1")" > "$work/$lf_name/slots"
+	fi
+	printf '%s' "$lf_settings" > "$work/$lf_name/settings"
+}
+loff='{"model":"LINK","bootRom":"off"}'
+lfolder l2 "$loff" "$progs/master.gb" "$progs/slave.gb"
+"$native" "$work/l2" --frames 1 --list-panel > "$work/panel-link.out" 2> /dev/null
+check "package:controls" "each of the package's machines declares the core's own $(grep -c '^panel' "$work/panel.out") buttons and $(grep -c '^axis' "$work/panel.out") axes, in the core's order; on a Game Boy the first pad and Power are live, on the Super Game Boy all four pads, on the Game Boy Link machine two pads, Power and Toggle Link Connection; the tilt axes are live only with a tilt cartridge" \
+	python3 - "$here/waterbox.config" "$work/panel.out" "$work/panel-sgb.out" "$work/panel-tilt.out" "$work/panel-link.out" <<'PY'
 import json, sys
 cfg = json.load(open(sys.argv[1]))
 def panel(path):
@@ -148,8 +166,11 @@ def panel(path):
 one, one_live, one_axes = panel(sys.argv[2])
 sgb, sgb_live, _ = panel(sys.argv[3])
 _, _, tilt_axes = panel(sys.argv[4])
-want_live = ["P1 " + b for b in ("Up", "Down", "Left", "Right", "Start", "Select", "B", "A")] + ["Power"]
-ok = one_live == want_live and len(one) == 33 and len(sgb_live) == 33 and one_axes == [False, False] and tilt_axes == [True, True]
+pad = ("Up", "Down", "Left", "Right", "Start", "Select", "B", "A")
+want_live = ["P1 " + b for b in pad] + ["Power"]
+_, link_live, _ = panel(sys.argv[5])
+ok = one_live == want_live and len(one) == 34 and len(sgb_live) == 33 and one_axes == [False, False] and tilt_axes == [True, True] \
+    and link_live == ["P1 " + b for b in pad] + ["P2 " + b for b in pad] + ["Power", "Toggle Link Connection"]
 for m in cfg["machines"]:
     ok = ok and m["input"]["buttons"] == one and [a["name"] for a in m["input"]["axes"]] == ["P1 Tilt X", "P1 Tilt Y"]
 sys.exit(0 if ok else 1)
@@ -207,7 +228,7 @@ check "prog:power" "Power starts the console again: the program counted $(r "$wo
 mkdir -p "$work/sv"
 nat sv t --frames 300 --press 7:100:5 --savedata-out "$work/sv"
 sav="$work/sv/testprog.sav"
-folder sv2 '{"model":"GB"}' "$progs/testprog.gb" "$sav"
+folder sv2 '{"model":"GB","bootRom":"off"}' "$progs/testprog.gb" "$sav"
 nat sv2 sv2 --frames 300 --dump-domain WRAM "$work/sv2.wram"
 check "prog:save-data" "Export Save Data writes testprog.sav: the 8 KB of memory and the clock's registers ($(wc -c < "$sav" 2> /dev/null) bytes); a project with it begins from it: the count of starts goes on ($(r "$work/sv2.wram" starts)) and the clock from its 5 seconds ($(r "$work/sv2.wram" clockSeconds) after 300 frames more)" \
 	sh -c "[ '$(wc -c < "$sav" 2> /dev/null || echo 0)' -gt 8192 ] && [ '$(r "$work/sv2.wram" starts)' = $(( ($(r "$work/idle.wram" starts) + 1) % 256 )) ] && [ '$(r "$work/sv2.wram" clockSeconds)' = 10 ]"
@@ -220,7 +241,7 @@ check "prog:save-data" "Export Save Data writes testprog.sav: the 8 KB of memory
 start=1495889068
 stamp="$(python3 -c "import struct, sys; d = open(sys.argv[1], 'rb').read(); print(struct.unpack_from('<i', d, 8192 + 40)[0])" "$sav" 2> /dev/null)"
 python3 -c "import struct, sys; d = bytearray(open(sys.argv[1], 'rb').read()); struct.pack_into('<i', d, 8192 + 40, $start - 3605); open(sys.argv[2], 'wb').write(d)" "$sav" "$work/old.sav"
-folder sv3 '{"model":"GB"}' "$progs/testprog.gb" "$work/old.sav"
+folder sv3 '{"model":"GB","bootRom":"off"}' "$progs/testprog.gb" "$work/old.sav"
 nat sv3 sv3 --frames 300 --dump-domain WRAM "$work/sv3.wram"
 check "prog:clock-time" "the saved clock carries the machine's time, $((${stamp:-0} - start)) seconds after the clock's start at 300 frames; saved data stamped an hour and 5 seconds before the start moves the clock on by that when loaded ($(r "$work/sv3.wram" clockSeconds) seconds after 300 frames, 10 without)" \
 	sh -c "[ $((${stamp:-0} - start)) -ge 4 ] && [ $((${stamp:-0} - start)) -le 5 ] && [ '$(r "$work/sv3.wram" clockSeconds)' = 15 ]"
@@ -242,10 +263,10 @@ check "prog:bus" "the system bus at C000 holds what the work memory does ($(od -
 
 # ------------------------------------------------- the consoles
 nat gbc c --frames 300 --report 25 --dump-domain WRAM "$work/gbc.wram"
-folder auto '{}' "$progs/testprog.gbc"
+folder auto '{"bootRom":"off"}' "$progs/testprog.gbc"
 nat auto auto --frames 300 --report 25
 folder gba '{"model":"GBA"}' "$progs/testprog.gbc"
-folder gbcdmg '{"model":"GB"}' "$progs/testprog.gbc"
+folder gbcdmg '{"model":"GB","bootRom":"off"}' "$progs/testprog.gbc"
 nat gba gba --frames 300 --report 25 --dump-domain WRAM "$work/gba.wram"
 nat sgb s --frames 300 --report 25 --dump-domain WRAM "$work/sgb.wram" --vid-out "$work/sgb.vid"
 nat gbcdmg gbcdmg --frames 300 --report 25 --dump-domain WRAM "$work/gbcdmg.wram"
@@ -293,8 +314,8 @@ box rewind t --frames 1600 --report 5 --rewind --press 5:790:40 --press 5:1190:4
 check "prog:state-rewind" "a state kept at frame 800, with the screen off, and loaded at 1200: the frames after the load repeat those after the save" \
 	repeats "$work/rewind.out" 800 1200 380 5
 
-folder gbcc '{"model":"GBC","colorCorrection":"on"}' "$progs/testprog.gbc"
-folder grey '{"model":"GB","palette":"grey"}' "$progs/testprog.gb"
+folder gbcc '{"model":"GBC","bootRom":"off","colorCorrection":"on"}' "$progs/testprog.gbc"
+folder grey '{"model":"GB","bootRom":"off","palette":"grey"}' "$progs/testprog.gb"
 sgbrun="--frames 600 --report 10 --press 7:50:40 --press $p2up:80:30 --press $p3a:200:5 --press 5:280:40 --press $p4st:330:60 --press $pw:400:1"
 tiltrun="--frames 300 --report 10 --axis 0:20000:50:100 --axis 1:-30000:120:100 --press $pw:200:1"
 for m in c:gbc gba:gba s:sgb tilt:tilt gbcc:gbcc grey:grey; do
@@ -321,6 +342,73 @@ ok = cols(a, 3) == cols(b, 3) and cols(a, 6) != cols(b, 6) and cols(c, 3) == col
 sys.exit(0 if ok else 1)
 PY
 
+# ------------------------------------------------- the Game Boy Link machine
+# Two Gearboy machines in the one core, joined by a link cable. The test
+# program's link modes (tests/make-testprog.py): a "master" sends its frame
+# count every frame on its own clock; a "slave" answers on the master's clock
+# with its own count, the top bit set. Each keeps the last byte that came in
+# (linkIn) and counts transfers (linkCount, wrapping at 256).
+# lnat <name> <folder> <options...>: a native run, with both Game Boys' work
+# memory dumped as <name>.p1 and <name>.p2
+lnat() { ln_name="$1"; ln_dir="$2"; shift 2; "$native" "$work/$ln_dir" "$@" --dump-domain "P1 WRAM" "$work/$ln_name.p1" --dump-domain "P2 WRAM" "$work/$ln_name.p2" > "$work/$ln_name.out" 2> "$work/$ln_name.err"; }
+lr() { r "$work/$1.p$2" "$3"; }
+lnat lx l2 --frames 300 --report 25
+# the same with the roles swapped: P2 sends on its own clock
+lfolder l2r "$loff" "$progs/slave.gb" "$progs/master.gb"
+lnat lxr l2r --frames 300
+check "link:exchange" "two Game Boys pass bytes both ways: P2 finished $(lr lx 2 linkCount) transfers in 300 frames (P1 starts one every frame; P2 is ready for one about every second frame), P1 last got $(lr lx 1 linkIn) (P2's count with the top bit) and P2 got $(lr lx 2 linkIn) (P1's frame count, $(lr lx 1 frames), low byte, give or take two); the picture is both screens side by side, $(size "$work/lx.out"); with the roles swapped, P1 finished $(lr lxr 1 linkCount) and P2 got $(lr lxr 2 linkIn)" \
+	sh -c "[ '$(size "$work/lx.out")' = 320x144 ] && [ '$(lr lx 2 linkCount)' -ge 100 ] && [ \$(( $(lr lx 1 linkIn) & 128 )) = 128 ] && [ \$(( ($(lr lx 1 frames) - $(lr lx 2 linkIn)) & 255 )) -le 2 ] && [ \$(( $(lr lx 2 linkIn) & 128 )) = 0 ] && [ $(pictures "$work/lx.out") -ge 10 ] && [ '$(lr lxr 1 linkCount)' -ge 100 ] && [ \$(( $(lr lxr 2 linkIn) & 128 )) = 128 ] && [ '$(lr lx 1 linkIn)' != 255 ] && [ '$(lr lxr 2 linkIn)' != 255 ]"
+tg="$(index l2 'Toggle Link Connection')"
+lnat lu1 l2 --frames 150 --press "$tg":100:1
+lnat lu2 l2 --frames 300 --press "$tg":100:1 --press "$tg":200:1
+check "link:unplugged" "the cable pulled at frame 100: P2 stops getting bytes ($(lr lu1 2 linkCount) transfers by frame 150, as by frame 100) and P1's own transfers bring in 255 ($(lr lu1 1 linkIn)); put back at 200, P2 gets them again ($(lr lu2 2 linkCount) by frame 300)" \
+	sh -c "[ '$(lr lu1 1 linkIn)' = 255 ] && [ \$(( $(lr lu2 2 linkCount) - $(lr lu1 2 linkCount) )) -ge 50 ]"
+lnat lun l2 --frames 100
+check "link:unplugged-control" "without the pull, P2's count at frame 100 is the one it stopped at ($(lr lun 2 linkCount) and $(lr lu1 2 linkCount)): the cable pulled stops the transfers and nothing else" \
+	[ "$(lr lun 2 linkCount)" = "$(lr lu1 2 linkCount)" ]
+lfolder lt "$loff" "$progs/testprog.gb" "$progs/testprog.gb"
+p2a="$(index lt 'P2 A')"; pw2="$(index lt 'Power')"
+lnat lc lt --frames 300 --press 0:100:50 --press "$p2a":150:50
+lnat lp lt --frames 300 --press "$pw2":100:1
+check "link:controls" "each Game Boy's pad reaches it alone (P1 saw $(lr lc 1 padSeen), Up; P2 saw $(lr lc 2 padSeen), A), and Power starts both again (frames counted after it: $(lr lp 1 frames) and $(lr lp 2 frames) of 200)" \
+	sh -c "[ '$(lr lc 1 padSeen) $(lr lc 2 padSeen)' = '64 1' ] && [ '$(lr lp 1 frames)' -ge 195 ] && [ '$(lr lp 1 frames)' -le 200 ] && [ '$(lr lp 2 frames)' -ge 195 ] && [ '$(lr lp 2 frames)' -le 200 ]"
+lfolder lm '{"model":"LINK","bootRom":"off","linkModel1":"GBC","linkModel2":"GBA"}' "$progs/testprog.gbc" "$progs/testprog.gbc"
+lnat lmo lm --frames 60
+lfolder l1 "$loff" "$progs/testprog.gb"
+lnat lone l1 --frames 300
+check "link:models" "each Game Boy is the console its setting names (P1 GBC: A/B $(lr lmo 1 bootA)/$(lr lmo 1 bootB), P2 GBA: $(lr lmo 2 bootA)/$(lr lmo 2 bootB)); with no game for P2, P2 runs P1's game ($(lr lone 2 frames) frames counted)" \
+	sh -c "[ '$(lr lmo 1 bootA)/$(lr lmo 1 bootB) $(lr lmo 2 bootA)/$(lr lmo 2 bootB)' = '17/0 17/1' ] && [ '$(lr lone 2 frames)' -ge 295 ]"
+mkdir -p "$work/lsv" "$work/lsnd-av" "$work/lsnd1-av"
+"$native" "$work/lt" --frames 300 --report 300 --savedata-out "$work/lsv" > /dev/null 2>&1
+"$native" "$work/lt" --frames 600 --report 600 --press "$p2a":100:300 --av-stream "$work/lsnd-av" > /dev/null 2>&1
+"$native" "$work/lt" --frames 600 --report 600 --av-stream "$work/lsnd1-av" > /dev/null 2>&1
+ltotal="$(( $(wc -c < "$work/lsnd-av/audio.raw") / 4 ))"
+lfolder lsv2 "$loff" "$progs/testprog.gb" "$progs/testprog.gb"
+cp "$work/lsv/P2 p2-testprog.sav" "$work/lsv2/p2.sav" 2> /dev/null
+printf '{"game":["p1-testprog.gb"],"game2":["p2-testprog.gb"],"savedata2":["p2.sav"]}' > "$work/lsv2/slots"
+lnat lsvr lsv2 --frames 10
+check "link:save-data" "Export Save Data writes each Game Boy's ($(ls "$work/lsv" | tr '\n' ',' )), and P2's saved data starts P2 alone from it (starts: P1 $(lr lsvr 1 starts), P2 $(lr lsvr 2 starts))" \
+	sh -c "[ -f '$work/lsv/P1 p1-testprog.sav' ] && [ -f '$work/lsv/P2 p2-testprog.sav' ] && [ '$(lr lsvr 2 starts)' = \$(( ($(lr lsvr 1 starts) + 1) % 256 )) ]"
+check "link:sound" "$ltotal sound samples in 600 frames of the same length (44,100 a second: $(( 600 * 70224 * 44100 / 4194304 ))), and P2's sound is in the mix (P2's A, which changes its pitch, changes the mix)" \
+	sh -c "[ \$(( $ltotal - 600 * 70224 * 44100 / 4194304 )) -ge -600 ] && [ \$(( $ltotal - 600 * 70224 * 44100 / 4194304 )) -le 600 ] && ! cmp -s '$work/lsnd-av/audio.raw' '$work/lsnd1-av/audio.raw'"
+lfolder lq "$loff" "$progs/nopad.gb" "$progs/nopad.gb"
+lfolder lq1 "$loff" "$progs/nopad.gb" "$progs/testprog.gb"
+"$native" "$work/lq" --frames 300 --report 300 > "$work/lq.out" 2> /dev/null
+"$native" "$work/lq1" --frames 300 --report 300 > "$work/lq1.out" 2> /dev/null
+check "link:lag" "a frame is a lag frame when neither Game Boy read its buttons: $(field "$work/lq.out" lag) in 300 when neither does, $(field "$work/lq1.out" lag) when P2 does" \
+	[ "$(field "$work/lq.out" lag) $(field "$work/lq1.out" lag)" = "300 1" ]
+lall="--frames 600 --report 10 --press 0:50:40 --press $p2a:80:30 --press $tg:200:1 --press $tg:260:1 --press $pw2:400:1"
+nat lall l2 $lall
+box lall-box l2 $lall
+box lall-rr l2 $lall --rerecord
+box lall-ss l2 $lall --session
+for n in lall lall-box lall-rr lall-ss; do stream "$work/$n.out" > "$work/$n.stream"; done
+check "link:sandbox" "native, sandbox, a state saved and loaded every frame ($(grep -o 'stateBytes=[0-9]*' "$work/lall-rr.err" | head -1 | sed 's/stateBytes=//') bytes, both Game Boys) and the machine moved to a new sandbox half way print the same $(wc -l < "$work/lall.stream") digests, with both pads, the cable pulled and put back, and Power" \
+	sh -c "[ -s '$work/lall.stream' ] && cmp -s '$work/lall.stream' '$work/lall-box.stream' && cmp -s '$work/lall.stream' '$work/lall-rr.stream' && cmp -s '$work/lall.stream' '$work/lall-ss.stream'"
+box lrw l2 --frames 1600 --report 5 --rewind --press "$tg":790:1 --press "$tg":1190:1
+check "link:state-rewind" "a state of both Game Boys kept at frame 800 and loaded at 1200: the frames after the load repeat those after the save" \
+	repeats "$work/lrw.out" 800 1200 380 5
+
 # ------------------------------------------------- what is refused
 mkdir -p "$work/none"
 printf '{"game":[]}' > "$work/none/slots"; printf '{}' > "$work/none/settings"
@@ -333,6 +421,12 @@ check "refused:not-a-game" "a file too short to be a game is refused, and says s
 folder nobios '{"model":"GB","bootRom":"on"}' "$progs/testprog.gb"
 nat nobios nobios --frames 1
 check "refused:no-boot-rom" "with Boot ROM 'on' and no boot ROM given, the machine is refused, and says which file it needs" grep -q "Init failed.*error.boot_rom.dmg_boot.bin" "$work/nobios.out" "$work/nobios.err"
+folder defbios '{"model":"GB"}' "$progs/testprog.gb"
+nat defbios defbios --frames 1
+folder defbios2 '{"model":"SGB"}' "$progs/sgbprog.gb"
+nat defbios2 defbios2 --frames 10
+check "refused:default-boot-rom" "Boot ROM is on unless a project says off: a Game Boy project that does not name it and has no boot ROM is refused, naming dmg_boot.bin; a Super Game Boy, which has no boot ROM in Gearboy, starts without one" \
+	sh -c "grep -q 'Init failed.*error.boot_rom.dmg_boot.bin' '$work/defbios.out' '$work/defbios.err' && grep -q '^frame' '$work/defbios2.out'"
 folder nosgb '{"model":"SGB","sgbCartridge":"SGB1"}' "$progs/sgbprog.gb"
 nat nosgb nosgb --frames 1
 check "refused:no-sgb-cartridge" "with a Super Game Boy cartridge asked for and none given, the machine is refused, and says which file it needs" grep -q "Init failed.*error.sgb_missing.SGB1.sfc" "$work/nosgb.out" "$work/nosgb.err"
@@ -380,7 +474,7 @@ for g in "$games"/*.gb "$games"/*.gbc; do
 	n="$(basename "$g")"
 	ext="${n##*.}"
 	model=GB; [ "$ext" = gbc ] && model=GBC
-	folder "g-$n" "{\"model\":\"$model\"}" "$g"
+	folder "g-$n" "{\"model\":\"$model\",\"bootRom\":\"off\"}" "$g"
 	gp="--frames 2000 --report 100 --press 4:600:5 --press 4:900:5 --press 7:1100:5 --press 4:1300:5 --press 7:1500:5 --press 3:1600:200"
 	nat "g-$n" "g-$n" $gp
 	box "g-$n-box" "g-$n" $gp
@@ -399,13 +493,33 @@ for g in "$games"/*.gb "$games"/*.gbc; do
 done
 [ "$found" = 1 ] || report "game:*" SKIP "no .gb or .gbc game in tests/games-local"
 
+# Super Mario Bros. Deluxe (USA, Europe) (Rev A) twice on the link machine,
+# both as the Game Boy Color: the title, VS GAME on both, the Vs. screen
+# (each Game Boy shows itself as YOU and the other as RIVAL) and a race on
+# course 1-1, both players running right
+smbdx=""
+for g in "$games"/*.gbc; do
+	[ -f "$g" ] && [ "$(sha1sum < "$g" | cut -c1-40)" = 07295cd60ae44183ebecb013930727e0404169d5 ] && { smbdx="$g"; break; }
+done
+if [ -n "$smbdx" ]; then
+	lfolder lsmb '{"model":"LINK","bootRom":"off","linkModel1":"GBC","linkModel2":"GBC"}' "$smbdx"
+	smbin="--frames 2100 --report 100 --press 4:500:5 --press 12:520:5 --press 1:850:5 --press 1:880:5 --press 9:860:5 --press 9:890:5 --press 7:1000:5 --press 15:1010:5 --press 7:1200:5 --press 15:1210:5 --press 7:1550:5 --press 15:1560:5 --press 7:1700:5 --press 15:1710:5 --press 3:1900:200 --press 11:1950:150"
+	nat lsmb lsmb $smbin
+	box lsmb-box lsmb $smbin
+	stream "$work/lsmb.out" > "$work/lsmb.stream"; stream "$work/lsmb-box.out" > "$work/lsmb-box.stream"
+	check "link-game:smb-deluxe" "two Super Mario Bros. Deluxe, linked, go from the title to VS GAME and race on course 1-1 (2,100 frames, $(pictures "$work/lsmb.out") different pictures in 21 reports); the sandbox gives the native build's digests" \
+		sh -c "[ \$(wc -l < '$work/lsmb.stream') = 21 ] && [ $(pictures "$work/lsmb.out") -ge 8 ] && cmp -s '$work/lsmb.stream' '$work/lsmb-box.stream'"
+else
+	report "link-game:smb-deluxe" SKIP "no Super Mario Bros. Deluxe (USA, Europe) (Rev A) in tests/games-local"
+fi
+
 # ------------------------------------------------- Chimera's engine
 runner="$chimera_root/build/meson-linux/chimera-run"
 package="$chimera_root/build/Cores/gearboy.chimeraCore"
 if [ -n "$chimera_root" ] && [ -x "$runner" ] && [ -f "$package" ]; then
 	mkdir -p "$work/proj"
 	cp "$progs/testprog.gb" "$work/proj/"
-	python3 "$root/tests/make-project.py" "$package" "$work/proj/test.chimeraProject" 300 model=GB \
+	python3 "$root/tests/make-project.py" "$package" "$work/proj/test.chimeraProject" 300 model=GB bootRom=off \
 		"press=P1 A:199:101" "press=P1 Down:149:151" panel="$work/panel.out" -- game="$work/proj/testprog.gb" > /dev/null
 	"$runner" --project "$work/proj/test.chimeraProject" "$package" --files "$work/proj" --frames 300 \
 		--dump "WRAM=$work/engine.wram" > "$work/engine.log" 2>&1
@@ -431,8 +545,19 @@ if [ -n "$chimera_root" ] && [ -x "$runner" ] && [ -f "$package" ]; then
 	box seng s --frames 300 --press "$p3a":200:101 --dump-domain WRAM "$work/seng.wram"
 	check "engine:sgb-project" "a Super Game Boy project with P3's A pressed plays in Chimera's headless runner to the sandbox runner's memory (P3's pad read as $(byte "$work/sengine.wram" 18))" \
 		sh -c "cmp -s '$work/sengine.wram' '$work/seng.wram' && [ '$(byte "$work/sengine.wram" 18)' = 1 ]"
+	# a Game Boy Link project: P2's A and the cable pulled, through the engine
+	mkdir -p "$work/lproj"
+	cp "$progs/master.gb" "$progs/slave.gb" "$work/lproj/"
+	python3 "$root/tests/make-project.py" "$package" "$work/lproj/link.chimeraProject" 300 model=LINK bootRom=off \
+		"press=P2 A:99:201" "press=Toggle Link Connection:199:1" panel="$work/panel-link.out" -- game="$work/lproj/master.gb" game2="$work/lproj/slave.gb" > /dev/null
+	"$runner" --project "$work/lproj/link.chimeraProject" "$package" --files "$work/lproj" --frames 300 \
+		--dump "P2 WRAM=$work/lengine.wram" > "$work/lengine.log" 2>&1
+	lfolder leng "$loff" "$progs/master.gb" "$progs/slave.gb"
+	"$runwbx" "$core" "$work/leng" --frames 300 --press "$p2a":100:201 --press "$tg":200:1 --dump-domain "P2 WRAM" "$work/leng.wram" > /dev/null 2>&1
+	check "engine:link" "a Game Boy Link project with P2's A and the cable pulled at frame 200 plays in Chimera's headless runner to the sandbox runner's memory of P2 (P2 saw $(r "$work/lengine.wram" padSeen), A)" \
+		sh -c "cmp -s '$work/lengine.wram' '$work/leng.wram' && [ '$(r "$work/lengine.wram" padSeen)' = 1 ]"
 else
-	for t in engine:project engine:input-polls engine:sgb-project; do
+	for t in engine:project engine:input-polls engine:sgb-project engine:link; do
 		report "$t" SKIP "needs CHIMERA_ROOT with build/meson-linux/chimera-run and build/Cores/gearboy.chimeraCore"
 	done
 fi

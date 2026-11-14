@@ -1,6 +1,6 @@
 {
   "_comment": [
-    "P1's buttons are on the arrow keys, with B on Z, A on X, Select on Tab and Start on Return. Power and the Super Game Boy's other controllers ship unbound.",
+    "P1's buttons are on the arrow keys, with B on Z, A on X, Select on Tab and Start on Return. Power, Toggle Link Connection and the Super Game Boy's other controllers ship unbound; on the Game Boy Link machine P2's pad is the second Game Boy's.",
     "Each player's buttons are also on that player's game controller (P1 on the first, and so on): the directional pad and the left stick are the arrows, A is A, B is X, Select is Back and Start is Start, as the NES core has them (chimera#336).",
     "The tilt sensor of an MBC7 cartridge (Kirby Tilt 'n' Tumble) follows the first game controller's right stick."
   ],
@@ -38,7 +38,8 @@
       "P4 Select": "J4 B9, X4 Back",
       "P4 B": "J4 B1, X4 X",
       "P4 A": "J4 B2, X4 A",
-      "Power": ""
+      "Power": "",
+      "Toggle Link Connection": ""
     }
   },
   "AllTrollersAnalog": {
