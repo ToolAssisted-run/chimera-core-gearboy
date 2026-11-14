@@ -1,0 +1,56 @@
+diff --git a/src/GearboyCore.cpp b/src/GearboyCore.cpp
+index c9b73b1..c595b84 100644
+--- a/src/GearboyCore.cpp
++++ b/src/GearboyCore.cpp
+@@ -109,6 +109,7 @@ GearboyCore::GearboyCore()
+     m_MapperType = Cartridge::CartridgeNotSupported;
+     m_bSGBEnabled = true;
+     m_bSGBAllGames = false;
++    m_bSGBModel = false;
+     m_bSGBBorder = true;
+     InitPointer(m_pSGBFrameBuffer);
+     m_iRTCUpdateCount = 0;
+@@ -1708,6 +1709,11 @@ void GearboyCore::SetSGBEnabled(bool enabled)
+     m_bSGBEnabled = enabled;
+ }
+ 
++void GearboyCore::SetSGBModel(bool enabled)
++{
++    m_bSGBModel = enabled;
++}
++
+ void GearboyCore::SetSGBAllGames(bool enabled)
+ {
+     m_bSGBAllGames = enabled;
+@@ -2019,7 +2025,7 @@ void GearboyCore::Reset(bool bCGB, bool bGBA)
+         Log("Reset: Defaulting to Game Boy DMG");
+     }
+ 
+-    m_bSGB = !m_bCGB && (m_pCartridge->IsSGB() || (m_bSGBAllGames && m_pSGB->IsBIOSLoaded())) && !m_bForceDMG && m_bSGBEnabled;
++    m_bSGB = !m_bCGB && (m_pCartridge->IsSGB() || (m_bSGBAllGames && m_pSGB->IsBIOSLoaded())) && (!m_bForceDMG || m_bSGBModel) && m_bSGBEnabled;
+     m_pMemory->Reset(m_bCGB, m_bSGB);
+     m_pProcessor->Reset(m_bCGB, m_bGBA, m_bSGB);
+     m_pVideo->SetSGBTransferMode(m_bSGB);
+diff --git a/src/GearboyCore.h b/src/GearboyCore.h
+index 6ef9875..1a847b4 100644
+--- a/src/GearboyCore.h
++++ b/src/GearboyCore.h
+@@ -129,6 +129,10 @@ public:
+     void SetSGBEnabled(bool enabled);
+     void SetSGBAllGames(bool enabled);
+     void SetSGBBorder(bool enabled);
++    // The console is a Super Game Boy: a game's Super Game Boy mode is used
++    // even when the game is forced to run as a Game Boy game (forceDMG), as
++    // a Game Boy Color game that also supports the Super Game Boy runs on one.
++    void SetSGBModel(bool enabled);
+     Memory* GetMemory();
+     Cartridge* GetCartridge();
+     Cartridge::CartridgeTypes GetMapperType();
+@@ -214,6 +218,7 @@ private:
+     bool m_bSGBEnabled;
+     bool m_bSGBAllGames;
+     bool m_bSGBBorder;
++    bool m_bSGBModel;
+     u16* m_pSGBFrameBuffer;
+     int m_iRTCUpdateCount;
+     GB_Color_Format m_pixelFormat;

@@ -1,0 +1,47 @@
+diff --git a/src/Cartridge.cpp b/src/Cartridge.cpp
+index 6795fa2..5152fe9 100644
+--- a/src/Cartridge.cpp
++++ b/src/Cartridge.cpp
+@@ -538,9 +538,19 @@ bool Cartridge::IsCGB() const
+     return m_bCGB;
+ }
+ 
++time_t (*Cartridge::s_pRTCTimeSource)(void) = NULL;
++
++void Cartridge::SetRTCTimeSource(time_t (*source)(void))
++{
++    s_pRTCTimeSource = source;
++}
++
+ void Cartridge::UpdateCurrentRTC()
+ {
+-    time(&m_RTCCurrentTime);
++    if (s_pRTCTimeSource)
++        m_RTCCurrentTime = s_pRTCTimeSource();
++    else
++        time(&m_RTCCurrentTime);
+ }
+ 
+ time_t Cartridge::GetCurrentRTC()
+diff --git a/src/Cartridge.h b/src/Cartridge.h
+index 51466f2..8f81e67 100644
+--- a/src/Cartridge.h
++++ b/src/Cartridge.h
+@@ -102,6 +102,9 @@ public:
+     bool IsCGB() const;
+     void UpdateCurrentRTC();
+     time_t GetCurrentRTC();
++    // Where the cartridge clocks read the time: the computer's (time()) when
++    // no source is set. A frontend that must replay a run sets its own.
++    static void SetRTCTimeSource(time_t (*source)(void));
+     INLINE bool IsRTCPresent() const;
+     bool IsRumblePresent() const;
+     bool IsMBC30() const;
+@@ -109,6 +112,7 @@ public:
+     void ClearGameGenieCheats();
+ 
+ private:
++    static time_t (*s_pRTCTimeSource)(void);
+     bool GatherMetadata(u32 crc);
+     void GetInfoFromDB(u32 crc);
+     bool LoadFromZipFile(const u8* buffer, int size, bool softpatching);

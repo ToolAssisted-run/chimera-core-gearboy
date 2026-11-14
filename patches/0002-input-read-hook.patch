@@ -1,0 +1,64 @@
+diff --git a/src/IORegistersMemoryRule.h b/src/IORegistersMemoryRule.h
+index 2951e94..5800b39 100644
+--- a/src/IORegistersMemoryRule.h
++++ b/src/IORegistersMemoryRule.h
+@@ -168,6 +168,7 @@ inline u8 IORegistersMemoryRule::PerformRead(u16 address)
+         case 0xFF00:
+         {
+             // P1
++            m_pInput->NotifyRead();
+             u8 p1 = m_pInput->Read();
+             u8 result = p1;
+             if (IsValidPointer(m_pSGB) && m_pSGB->GetPlayerCount() > 1)
+diff --git a/src/Input.cpp b/src/Input.cpp
+index b538738..4310dea 100644
+--- a/src/Input.cpp
++++ b/src/Input.cpp
+@@ -23,6 +23,8 @@
+ 
+ Input::Input(Processor* pProcessor)
+ {
++    m_pReadHook = NULL;
++    m_pReadHookUser = NULL;
+     m_pProcessor = pProcessor;
+     memset(m_JoypadState, 0xFF, sizeof(m_JoypadState));
+     m_P1 = 0xFF;
+diff --git a/src/Input.h b/src/Input.h
+index be37d75..c3883c7 100644
+--- a/src/Input.h
++++ b/src/Input.h
+@@ -39,6 +39,11 @@ public:
+     u8 Read();
+     void SaveState(std::ostream& stream);
+     void LoadState(std::istream& stream, u32 version = GB_SAVESTATE_VERSION);
++    // Called each time the program reads the joypad register (P1, FF00),
++    // so a frontend can tell a frame that read the buttons from one that
++    // did not. Debugger reads do not call it.
++    void SetReadHook(void (*hook)(void* user), void* user);
++    INLINE void NotifyRead();
+ 
+ private:
+     void Update();
+@@ -49,8 +54,22 @@ private:
+     u8 m_P1;
+     int m_iInputCycles;
+     int m_iCurrentPlayer;
++    void (*m_pReadHook)(void* user);
++    void* m_pReadHookUser;
+ };
+ 
++inline void Input::SetReadHook(void (*hook)(void* user), void* user)
++{
++    m_pReadHook = hook;
++    m_pReadHookUser = user;
++}
++
++INLINE void Input::NotifyRead()
++{
++    if (m_pReadHook)
++        m_pReadHook(m_pReadHookUser);
++}
++
+ INLINE void Input::Tick(unsigned int clockCycles)
+ {
+     m_iInputCycles += clockCycles;

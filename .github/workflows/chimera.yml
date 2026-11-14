@@ -1,0 +1,198 @@
+name: chimera waterbox core
+
+# Builds the core from a fresh clone, tests it, and publishes the package.
+#
+# The tests need no file of anyone's here: test cartridges of this
+# repository's (tests/make-testprog.py, tests/make-gb-test.py) read the
+# buttons, keep a battery memory, read the cartridge's clock, ask the Super
+# Game Boy for four pads and read a tilt sensor. So these run here, as
+# before a push:
+#   - the source is the pinned commit with its patches, and the package
+#     declares the controls the core has, with key names Chimera knows;
+#   - every button, lag frames, the screen off, the cartridge's clock, the
+#     sound, Power, the saved data (and that exporting it changes nothing),
+#     the system bus, the four consoles, the Super Game Boy's border and
+#     four pads, the tilt sensor, and the sandboxed core gives the native
+#     build's results with savestates;
+#   - the package runs the test programs in Chimera's headless runner and
+#     in its window;
+#   - Chimera's own checks of the package pass.
+# What does not run here: the boot ROMs and the Super Game Boy cartridges
+# (Nintendo's) and games, which tests/roms-local and tests/games-local hold
+# where they exist.
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+  schedule:
+    # 06:20 UTC. A nightly is published only when main moved since the last
+    # one; the shared publishing workflow checks.
+    - cron: '20 6 * * *'
+
+# Keyed by the event as well as the branch: otherwise the nightly schedule
+# and a push to main cancel each other, and the publishing that depends on
+# the cancelled run is skipped with nothing reporting a failure.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+env:
+  CHIMERA_REF: main
+
+jobs:
+
+  gate:
+    # Once per CPU, each on a runner of that CPU: a package is machine code for
+    # one CPU, and miniBox's guest toolchain builds for the CPU it runs on.
+    name: build and test for ${{ matrix.arch }} (native against sandbox, the package, Chimera's package checks)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Check out Chimera
+        uses: actions/checkout@v6
+        with:
+          repository: ToolAssisted-run/chimera
+          ref: ${{ env.CHIMERA_REF }}
+          path: chimera-checkout
+          submodules: recursive
+
+      - name: Install build dependencies
+        # The lib*-dev packages are what Chimera's own build needs; this
+        # core links none of them.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends meson ninja-build build-essential cmake pkg-config python3 curl xz-utils patch libgl1-mesa-dev libegl-dev libx11-dev libxext-dev libasound2-dev
+
+      - name: Cache Qt
+        uses: actions/cache@v4
+        with:
+          path: ~/qt
+          key: qt-6.12.0-linux-${{ matrix.arch }}-aqt-3.3.0
+
+      - name: Build Chimera (the engine, chimera-run and the window)
+        run: chimera-checkout/tools/ci-chimera.sh "$HOME/qt"
+
+      - name: Which Meson the runner has
+        # a build folder one Meson set up, another cannot read: the runner's
+        # Meson changed on 2026-11-12 and every cached miniBox build failed
+        id: meson
+        run: echo "version=$(meson --version)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache miniBox's sandbox toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            chimera-checkout/extern/chimera-common-minibox/build/meson-linux
+            chimera-checkout/extern/chimera-common-minibox/build/meson-cpp
+          key: guest-cpp-meson${{ steps.meson.outputs.version }}-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('chimera-checkout/extern/chimera-common-minibox/.git') }}-${{ hashFiles('chimera-checkout/extern/chimera-common-minibox/meson.build') }}
+
+      - name: Build miniBox (the sandbox, and its C++ toolchain)
+        run: |
+          mb="$PWD/chimera-checkout/extern/chimera-common-minibox"
+          [ -f "$mb/build/meson-linux/build.ninja" ] || meson setup "$mb/build/meson-linux" "$mb"
+          meson compile -C "$mb/build/meson-linux"
+          [ -f "$mb/build/meson-cpp/build.ninja" ] || meson setup "$mb/build/meson-cpp" "$mb" -Dguest_cpp=true
+          meson compile -C "$mb/build/meson-cpp"
+
+      - name: Lay the patches over Gearboy
+        run: sh ./waterbox/apply-patches.sh
+
+      - name: Build the native reference and the sandbox runner
+        run: |
+          meson setup build/meson-native -Dminibox_dir="$PWD/chimera-checkout/extern/chimera-common-minibox"
+          ninja -C build/meson-native
+
+      - name: Build the sandboxed core and the package
+        # The commit is the version the package is stamped with: this is the
+        # build that is published, so it is what a movie can name. A package
+        # built by hand is stamped "+local" instead.
+        env:
+          CORE_VERSION: ${{ github.sha }}
+        run: sh ./waterbox/build-package.sh -r "$GITHUB_WORKSPACE/chimera-checkout"
+
+      - name: Run the test script
+        # A run in which these did not pass has tested nothing, so they are
+        # asked for by name.
+        env:
+          CHIMERA_ROOT: ${{ github.workspace }}/chimera-checkout
+        run: |
+          rc=0
+          bash ./waterbox/run-gate.sh > gate.out 2>&1 || rc=$?
+          cat gate.out
+          [ "$rc" -eq 0 ]
+          for t in source:pinned package:fresh package:controls package:key-names prog:runs prog:buttons \
+                   prog:lag prog:screen-off prog:clock prog:sound prog:power prog:save-data prog:clock-time prog:save-data-looks \
+                   prog:bus consoles:no-model consoles:models consoles:sgb-screen consoles:sgb-pads tilt:axes \
+                   prog:sandbox prog:presses-change-the-run prog:state-every-frame prog:state-other-box \
+                   prog:state-rewind consoles:sandbox consoles:picture-settings refused:no-game refused:not-a-game \
+                   refused:no-boot-rom refused:no-sgb-cartridge refused:unknown-sgb-cartridge \
+                   engine:project engine:input-polls engine:sgb-project; do
+            grep -q "^$t  *PASS " gate.out || { echo "$t did not pass"; exit 1; }
+          done
+
+      - name: Run the window test
+        # The package loaded by Chimera's own window (run headless,
+        # with no display): the test program's memory against the headless
+        # runner's, the keys, and the Super Game Boy test program in its
+        # border with P3's pad.
+        run: |
+          rc=0
+          bash ./tests/run-frontend.sh --chimera-root "$GITHUB_WORKSPACE/chimera-checkout" > window.out 2>&1 || rc=$?
+          cat window.out
+          [ "$rc" -eq 0 ]
+          for t in window:program window:keys window:sgb; do
+            grep -q "^$t  *PASS " window.out || { echo "$t did not pass"; exit 1; }
+          done
+
+      - name: Chimera's checks of the package
+        env:
+          CHIMERA_CORES_DIR: ${{ github.workspace }}/chimera-checkout/build/Cores
+        run: chimera-checkout/build/meson-linux/source/ui/test-packages
+
+      - name: Upload the package
+        uses: actions/upload-artifact@v7
+        with:
+          name: gearboy-${{ github.sha }}-${{ matrix.arch }}
+          path: chimera-checkout/build/Cores/gearboy.chimeraCore
+          if-no-files-found: error
+
+      - name: Upload the test output on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-logs-${{ matrix.arch }}
+          path: |
+            gate.out
+            window.out
+
+  publish:
+    # What passed above, published as this core's own release: a dated `nightly-
+    # YYYY-MM-DD` from the scheduled run or one started by hand (a push to main
+    # publishes nothing), through the one workflow every Chimera core publishes
+    # with.
+    name: publish
+    needs: [ gate ]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+    uses: ToolAssisted-run/chimera/.github/workflows/publish-core.yml@main
+    with:
+      core-id: gearboy
+      artifact: gearboy-${{ github.sha }}
+      package: gearboy.chimeraCore
+      arches: x86_64 aarch64

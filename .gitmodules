@@ -1,0 +1,4 @@
+[submodule "extern/gearboy"]
+	path = extern/gearboy
+	url = https://github.com/drhelius/Gearboy.git
+	shallow = true

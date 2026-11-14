@@ -1,0 +1,46 @@
+{
+ "package": "gearboy",
+ "effectiveTerms": "GPL-3.0-or-later",
+ "commercialUse": "allowed",
+ "note": "The core is Gearboy's emulator (extern/gearboy/src), by Ignacio Sanchez and its contributors, under the GNU GPL version 3 or later (LICENSE in its repository; licenses/ in this repository holds the text). Its sound chip is Shay Green's (Blargg's) Gb_Snd_Emu, under the GNU LGPL 2.1 or later, and it reads zip and computes CRC-32 with Rich Geldreich's miniz, under the MIT licence. This repository's own files are under the GPL 3 or later as well. The package contains no game, no boot ROM and no Super Game Boy cartridge of anyone's.",
+ "components": [
+  {
+   "name": "chimera-core-gearboy (integration)",
+   "license": "GPL-3.0-or-later",
+   "url": "https://github.com/ToolAssisted-run/chimera-core-gearboy",
+   "commit": "{selfCommit}",
+   "file": "LICENSE",
+   "sourceUrl": "https://github.com/ToolAssisted-run/chimera-core-gearboy/archive/{commit}.tar.gz"
+  },
+  {
+   "name": "Gearboy",
+   "license": "GPL-3.0-or-later",
+   "url": "https://github.com/drhelius/Gearboy",
+   "commit": "{submodule:extern/gearboy}",
+   "file": "licenses/gearboy-GPL-3.0.txt",
+   "sourceUrl": "https://github.com/drhelius/Gearboy/archive/{commit}.tar.gz"
+  },
+  {
+   "name": "Gb_Snd_Emu (in Gearboy, the sound chip)",
+   "license": "LGPL-2.1-or-later",
+   "url": "https://github.com/drhelius/Gearboy",
+   "commit": "{submodule:extern/gearboy}",
+   "file": "licenses/gb_snd_emu-LGPL-2.1.txt",
+   "sourceUrl": "https://github.com/drhelius/Gearboy/archive/{commit}.tar.gz"
+  },
+  {
+   "name": "miniz (in Gearboy)",
+   "license": "MIT",
+   "url": "https://github.com/richgel999/miniz",
+   "commit": "{submodule:extern/gearboy}",
+   "file": "licenses/miniz-MIT.txt",
+   "sourceUrl": "https://github.com/drhelius/Gearboy/archive/{commit}.tar.gz"
+  },
+  {
+   "name": "A Game Boy, a photograph (pictures/game-boy.png)",
+   "license": "Public domain",
+   "url": "https://commons.wikimedia.org/wiki/File:Game-Boy-Original.jpg",
+   "file": "pictures/game-boy.txt"
+  }
+ ]
+}

@@ -1,0 +1,33 @@
+chimera-core-gearboy
+Copyright (c) 2026 Sergio Martin and the Chimera contributors
+
+This repository's own files (the program around the emulator in waterbox/,
+the build files, the tests and the documents) are free software: you can
+redistribute them and/or modify them under the terms of the GNU General
+Public License as published by the Free Software Foundation, either version
+3 of the License, or (at your option) any later version. They are
+distributed in the hope that they will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. The full text of the GPL version 3 is in
+licenses/gearboy-GPL-3.0.txt.
+
+Two test scripts come from other Chimera cores, with their terms:
+tests/make-testprog.py and the files beside it that read its results
+(results.py, sgb-screen.py, make-project.py, run-frontend.sh and its
+helpers) are from chimera-core-gambatte, under the MIT licence;
+tests/make-gb-test.py is from chimera-core-mesen, under the GPL version 3.
+
+--------------------------------------------------------------------------
+
+Gearboy (extern/gearboy, a submodule) is Ignacio Sanchez's Game Boy, Game
+Boy Color and Super Game Boy emulator, under the GNU General Public License,
+version 3 or later (extern/gearboy/LICENSE). It carries Shay Green's
+Gb_Snd_Emu, its sound chip, under the GNU Lesser General Public License,
+version 2.1 or later (licenses/gb_snd_emu-LGPL-2.1.txt), and Rich
+Geldreich's miniz under the MIT licence (licenses/miniz-MIT.txt). The files
+under patches/ are changes to Gearboy and are under its licence.
+
+The built package, gearboy.chimeraCore, holds Gearboy compiled together with
+this repository's program, and is distributed under the GNU General Public
+License version 3 or later. It holds no boot ROM, no Super Game Boy
+cartridge and no game.
