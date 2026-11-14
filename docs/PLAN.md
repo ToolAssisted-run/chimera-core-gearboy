@@ -311,3 +311,39 @@ pad given to the wrong player (`link:controls`, `link:sound`,
 Super Game Boy cartridges absent). `tests/run-frontend.sh`: 5 passed, 1
 skipped. Chimera's package checks: 25 passed. All 38 texts in 26
 languages.
+
+## 2026-11-14: the owner's firmware and games
+
+The owner's firmware is on jaffanator01; copies are in the ignored
+`tests/roms-local`. The pinned boot ROMs match: `dmg_boot.bin` is the
+owner's `GB_dmg.bin` (SHA-1 4ed31ec6...) and `cgb_boot.bin` is `GBC_cgb.bin`
+(1293d68b...). The owner's other boot ROMs (DMG0, MGB, CGB0, CGB E, the
+Super Game Boy's and the Game Boy Advance's) are not used by Gearboy.
+Gearboy takes the Super Game Boy cartridge in the owner's dumps (JU), Rev A
+(JU) and Rev B (World), and the Super Game Boy 2 (J); it refuses the Rev A
+beta (JU), with the core's message. Nothing in the core or the package
+changed.
+
+- `waterbox/run-gate.sh`: 60 passed, 0 failed, 0 skipped. `boot:GB` and
+  `boot:GBC`: the test program starts at frame 337 and 187 after the boot
+  ROM (the Gambatte core measured 335 and 187), native == sandbox.
+  `sgb-cartridge:SGB1` and `SGB2`: a Game Boy-only game runs in the Super
+  Game Boy's border with either. `tests/run-frontend.sh`: 6 passed, 0
+  skipped (`window:refusal`: without the boot ROM the project is not opened
+  and the firmware is named).
+- Played with the boot ROM on (the default), native == sandbox, pictures
+  looked at:
+  - Bugs Bunny Crazy Castle II (Game Boy): the Nintendo logo from the boot
+    ROM, the title, stage 1's map, and the lives screen before the stage
+    (2,600 frames). The stage itself was not reached with the inputs tried.
+  - Super Mario Bros. Deluxe (Game Boy Color): the boot ROM, the menu,
+    Original 1985, course 1-1; Mario ran right and lost a life (2,000
+    frames).
+  - Pokemon Gold on the Super Game Boy with the Super Game Boy cartridge
+    (Rev B): its own border, the title, a new game to "What time is it?"
+    (2,600 frames).
+  - The link machine, both Game Boys with the Game Boy Color boot ROM: two
+    Super Mario Bros. Deluxe to VS GAME and a race on course 1-1 (2,300
+    frames).
+- Not tried: Tetris (not in the collection), a Pokemon trade, any game
+  played to its end, Windows, aarch64.
