@@ -33,6 +33,12 @@
 
 #include "gearboy.h"
 
+/* this core's windows in Chimera's Emulator menu: miniBox's ready-made Export
+ * Save Data and CPU Registers, built on its exports (Chimera has no tool of
+ * its own for a core, Chimera issue 610) */
+#define WBX_WINDOWS_IMPLEMENTATION
+#include <waterbox_windows.h>
+
 // Gearboy prints its log to standard output unless it is serving its MCP
 // server on it; this core prints nothing, so it says it is.
 bool g_mcp_stdio_mode = true;
